@@ -193,13 +193,42 @@ loader mechanics it needs, rather than claiming an engine integration run.
 Reproduction artifacts and complete logs are local under
 `../.build/rpl-native/`, `../.build/rpl-cafeglsl/` and
 `../.build/rpl-validation/`. Native-loader evidence and emulator limitations are
-recorded in `../.build/native-loader-research/`. This is Cemu validation, not a
-native-console pass; emulator timings are not hardware performance figures.
+recorded in `../.build/native-loader-research/`. Emulator timings are not
+hardware performance figures.
+
+Native-console validation subsequently passed with the same SDK and modules:
+
+- An application-directory RPX and a WUHB host both loaded the loose companion
+  RPL from the application's SD directory. Each completed both load/unload
+  cycles, cross-module exceptions, function identity, imported host TLS,
+  256-byte-aligned module TLS, and deferred unload through worker destruction.
+- Module destructors and ordinary C `atexit` callbacks each ran exactly once per
+  load. Reload started with fresh module TLS and repeated successfully.
+- Missing imports returned `bad10029` and a null handle before constructors.
+  A failing module entry finalized once and returned the same error and null
+  handle. Both results matched the corresponding Cemu runs.
+- The real CafeGLSL module loaded directly from `SD:/wiiu/lib/cafeglsl1.rpl`,
+  rejected malformed source, compiled the pair, freed results, unloaded and
+  reloaded. Both cycles matched the host-reference instruction hashes.
+- The WUHB host processed lifecycle messages and returned to Menu normally.
+
+The scratch host originally idled without processing lifecycle messages; this
+blocked the following launch after its module work had passed. Its idle loop
+now uses `WHBProcIsRunning()`. The compiler probe's direct process return also
+left the native system waiting in the root process. These were probe lifecycle
+limitations, not module-loading failures. No new SDK or Cemu source correction
+was needed by this console validation. Native logs and current Cemu control
+runs are under `../.build/rpl-validation/native/`.
+
+A WUHB host plus a loose companion RPL is verified; this does not establish
+loading an RPL embedded inside WUHB content.
 
 ## Remaining scope
 
-The native-console results above establish RPX TLS. Dynamic module integration
-has passed the offscreen Cemu checks below; native-console RPL verification is
-still pending. No
-binutils patch is needed for the implemented path. Embedded WUHB modules and
-arbitrary inter-module dependency discovery remain outside this implementation.
+Native-console results establish RPX TLS and the loose dynamic-module profile
+above. No binutils patch is needed for that path. Embedded WUHB modules,
+arbitrary inter-module dependency discovery, a full ScummVM engine integration,
+and arbitrary cross-version C++ object ABI compatibility remain outside this
+implementation. Global C interfaces must keep their API and required host-runtime
+imports compatible; the CafeGLSL run does not establish compatibility across
+unrelated toolchain releases.

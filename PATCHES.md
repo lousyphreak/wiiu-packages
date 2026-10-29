@@ -165,7 +165,11 @@ branches. A release needs coordinated compiler/WUT/tool/package dependencies,
 with final versions assigned during that release; fabricated package-version
 requirements would not establish compatibility today.
 
-The native results establish RPX behavior, not full RPL support. Upstream
-acceptance, a newer GCC rebase, multi-host binary packaging, and RPL/module
-unloading remain distinct work. No upstream PR or package publication has been
-performed by this change.
+The native results now establish RPX TLS and the loose RPL loading/unloading
+profile described in the README, including application-directory and WUHB hosts,
+worker TLS lifetime, failure cleanup, and the real CafeGLSL module. The original
+TLS patch files predate the module commits and must not be treated as a complete
+module-support release bundle. Upstream acceptance, a newer GCC rebase,
+multi-host binary packaging, embedded WUHB module loading, and broader module
+ABI guarantees remain separate work. No upstream PR or package publication has
+been performed by this change.
