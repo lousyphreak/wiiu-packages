@@ -1,9 +1,10 @@
 # Wii U TLS toolchain work
 
 This directory holds the local patch bundle for native C11 `_Thread_local`,
-GNU `__thread`, and C++ `thread_local` support. Nothing here has been published
-or installed over the system devkitPro SDK. Pacman repository packaging follows
-the working TLS implementation.
+GNU `__thread`, and C++ `thread_local` support. The implementation branches are
+published in the corresponding GitHub forks; the system SDK remains unchanged.
+[PACMAN.md](PACMAN.md) describes building a local installable repository that
+combines the TLS compiler with the application-host RPL implementation.
 
 ## Sources
 
@@ -75,8 +76,9 @@ refreshes generated libtool files in that source checkout; those generated
 changes are not part of the patch series.
 
 See [PATCHES.md](PATCHES.md) for the per-file rationale, flag choice, and
-remaining upstreaming work. Pacman binary packaging is still a separate step;
-this adapter produces a staged SDK, not a replacement package manager.
+remaining upstreaming work. This adapter produces a staged SDK. The separate
+[pacman packager](PACMAN.md) turns its compiler and the RPL libraries/tools into
+ordinary devkitPro-compatible packages.
 
 ## Verification
 
@@ -119,5 +121,5 @@ The TLS branches intentionally omit the later RPL host-binding implementation.
 It remains available on the preserved `wiiu` branches and is a separate upstream
 proposal. Native TLS uses the existing loader resolver; no binutils TLS change
 or system modification is required. Upstream review, coordinated package
-versions and multi-host binary packaging remain pending. No PR or package has
-been published.
+versions and multi-host binary packaging remain pending. No upstream PR or
+public binary repository has been published.
