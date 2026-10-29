@@ -2,7 +2,8 @@
 
 This directory holds the local patch bundle for native C11 `_Thread_local`,
 GNU `__thread`, and C++ `thread_local` support. The implementation branches are
-published in the corresponding GitHub forks; the system SDK remains unchanged.
+published in the corresponding GitHub forks. Building stages the SDK locally;
+installing the pacman packages updates the system SDK explicitly.
 [PACMAN.md](PACMAN.md) describes building a local installable repository that
 combines the TLS compiler with the application-host RPL implementation.
 
@@ -45,7 +46,7 @@ GCC 15 was used for the validated host build.
 
 Build output and logs go in `../.build/devkitPPC-16.2.0/powerpc-eabi/gcc/`,
 `../.build/wut-tools/`, and `../.build/wut-install.log`. The staged SDK is
-`../.build/sdk/opt/devkitpro`; the installed SDK remains unchanged. Point
+`../.build/sdk/opt/devkitpro`; staging does not change the installed SDK. Point
 `DEVKITPRO` and `DEVKITPPC` at that staged SDK. Normal WUT Make builds, devkitPro
 Wii U CMake builds, and `wiiuvars.sh` builds now select TLS automatically. Direct
 compiler invocations select it with the normal `-specs=.../wut.specs` at compile
@@ -100,8 +101,8 @@ The existing TLS probes passed offscreen Cemu preflight and then the console:
 
 CMake, the existing Make probe, and `wiiuvars.sh` compilation passed with automatic
 SDK selection. No application TLS attributes or manual TLS option were added.
-The existing generic/Wii/GameCube assembly probe matches the installed unmodified
-GCC 16.1.0 compiler, and the new compiler's default output matches explicit
+The existing generic/Wii/GameCube assembly probe matches the unmodified
+GCC 16.1.0 baseline, and the new compiler's default output matches explicit
 `-mno-wiiu-tls`. This is a small code-generation control, not a full cross-platform
 regression suite. Wii U output calls `__tls_get_addr` without thread-pointer
 relocations. The staged compiler retains devkitPro's `int`/`unsigned int` 32-bit
