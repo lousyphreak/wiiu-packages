@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package the locally built TLS compiler and pinned RPL sources for pacman."""
+"""Package the local Wii U SDK and host shader compiler for pacman."""
 
 import json
 import os
@@ -23,6 +23,7 @@ refs = {
     "wut": "672dc14788fa551b7e6804faedff48ea0603c8be",
     "wut-tools": "56a396f88994f40cc7c24345a0903919019219f8",
     "pacman-packages": "d204c60a698f429405fe35cc28fa7e4e485c1c28",
+    "cafeglsl-wiiu": "dcb241d15940a0a5019db89c26edde2cb71ac577",
 }
 repo = output / "repo" / arch
 repo.mkdir(parents=True, exist_ok=True)
@@ -52,7 +53,7 @@ def snapshot(name, ref, destination):
 # Build from committed files without switching branches or carrying generated edits.
 sources = output / "sources"
 shutil.rmtree(sources, ignore_errors=True)
-for name in ("wut", "wut-tools", "pacman-packages"):
+for name in ("wut", "wut-tools", "pacman-packages", "cafeglsl-wiiu"):
     snapshot(name, refs[name], sources / name)
 for path, ref in (
     ("libraries/excmd", "b48dab4954bdc074d7768e38065171441aaff7ce"),
@@ -85,6 +86,25 @@ run([str(sources / "wut-tools/configure"), "--prefix=/opt/devkitpro/tools"],
 run(["make", f"-j{jobs}"], cwd=tools_build, log="tools-build.log")
 run(["make", f"-j{jobs}", f"DESTDIR={stage / 'wut-tools'}", "install-strip"],
     cwd=tools_build, log="tools-install.log")
+
+cafe_build = output / "cafeglsl-build"
+shutil.rmtree(cafe_build, ignore_errors=True)
+run(["meson", "setup", str(cafe_build), str(sources / "cafeglsl-wiiu"),
+     "--prefix=/opt/devkitpro/tools", "--libdir=lib", "--buildtype=release",
+     "--default-library=static", "-Dtools=", "-Dvulkan-drivers=",
+     "-Dgallium-drivers=r600", "-Db_lundef=false", "-Dglx=disabled",
+     "-Degl=disabled", "-Dplatforms=", "-Dllvm=disabled", "-Dbuild-tests=false",
+     "-Dpkgconfig.relocatable=true"], log="cafeglsl-configure.log")
+run(["ninja", "-C", str(cafe_build), f"-j{jobs}",
+     "cafecompiler/libcafeglsl.a", "cafecompiler/glslcompiler"],
+    log="cafeglsl-build.log")
+cafe_prefix = stage / "cafeglsl-host/opt/devkitpro/tools"
+run([str(sources / "cafeglsl-wiiu/cafecompiler/ci/package.sh"), "host",
+     str(cafe_build), str(cafe_prefix)], log="cafeglsl-install.log")
+for filename, directory in [("LICENSE", "licenses"), ("README.md", "doc")]:
+    destination = cafe_prefix / "share" / directory / "cafeglsl-host"
+    destination.mkdir(parents=True)
+    shutil.move(cafe_prefix / filename, destination / filename)
 
 # Use the upstream data-package recipes' file sets, without relocating prefixes.
 cmake = sources / "pacman-packages/cmake/wiiu"
@@ -119,6 +139,10 @@ packages = [
 versions["wiiu-sdk-experimental"] = "20261029"
 packages.append(("wiiu-sdk-experimental", "any", "MIT", "Matching local Wii U TLS and RPL SDK packages",
                  [f"{name}={versions[name]}-{pkgrel}" for name in versions if name != "wiiu-sdk-experimental"]))
+# The host compiler can be installed independently of the target SDK.
+versions["cafeglsl-host"] = "0.3.0"
+packages.append(("cafeglsl-host", arch, "MIT", "Host GLSL to Wii U GX2 compiler and static development library",
+                 ["glibc", "gcc-libs", "zlib", "zstd", "libunwind", "libdrm"]))
 
 # Keep makepkg responsible for package metadata, mtree and compression.
 makepkg_config = output / "makepkg.conf"
@@ -129,9 +153,10 @@ archives = []
 for name, package_arch, license_name, description, depends in packages:
     recipe = output / "packages" / name
     recipe.mkdir(parents=True, exist_ok=True)
+    url = "https://github.com/lousyphreak/" + ("CafeGLSL" if name == "cafeglsl-host" else "wut")
     lines = [f"pkgname={name}", f"pkgver={versions[name]}", f"pkgrel={pkgrel}",
              f"pkgdesc={shlex.quote(description)}", f"arch=({package_arch})",
-             "url=https://github.com/lousyphreak/wut", f"license=({license_name})",
+             f"url={url}", f"license=({license_name})",
              "options=(!strip !debug !lto staticlibs libtool !zipman !purge)",
              "depends=(" + " ".join(shlex.quote(d) for d in depends) + ")"]
     if name == "dkp-toolchain-vars":
@@ -144,9 +169,12 @@ for name, package_arch, license_name, description, depends in packages:
     if name == "wiiu-sdk-experimental":
         lines[-1:] = ["    :", "}"]
     (recipe / "PKGBUILD").write_text("\n".join(lines) + "\n")
-    run(["makepkg", "--config", str(makepkg_config), "--nodeps", "--force"],
-        cwd=recipe, log=name + "-package.log")
-    archives.append(str(repo / f"{name}-{versions[name]}-{pkgrel}-{package_arch}.pkg.tar.zst"))
+    archive = repo / f"{name}-{versions[name]}-{pkgrel}-{package_arch}.pkg.tar.zst"
+    # Published versions are immutable; bump OVERLAY_RELEASE for changed payloads.
+    if not archive.exists():
+        run(["makepkg", "--config", str(makepkg_config), "--nodeps"],
+            cwd=recipe, log=name + "-package.log")
+    archives.append(str(archive))
 
 run(["repo-add", str(repo / "wiiu-local.db.tar.gz"), *archives], log="repo-add.log")
 (repo / "sources.json").write_text(json.dumps(refs, indent=2) + "\n")

@@ -5,6 +5,9 @@ implementation. It replaces five ordinary devkitPro packages at their normal
 `/opt/devkitpro` paths. It does not install anything on the Wii U or require a
 shared runtime installation there.
 
+The repository also provides the independently installable `cafeglsl-host`
+package: the PC shader compiler, headers, static library and build metadata.
+
 This first repository targets the development machine: Arch Linux x86_64.
 Host tools use Arch's normal shared libraries. These binaries are not a generic
 Linux, Windows, or macOS distribution.
@@ -26,6 +29,7 @@ listed in the script and copied into the repository's `sources.json`.
 `JOBS` defaults to 24. `OVERLAY_RELEASE` defaults to 1 and selects the package
 revision `1.1`; increment it when publishing changed packages. Keep source
 revisions and package versions in the script current when updating the SDK.
+Existing package archives are retained; changed payloads need a new release.
 `makepkg` must run as an ordinary user. It and `repo-add` come from pacman;
 the other packaging dependencies are fakeroot and zstd. The upstream compiler
 and tools build dependencies must already be installed.
@@ -50,6 +54,7 @@ The packages are:
 | `wiiu-cmake` | TLS flags and RPL build integration |
 | `dkp-toolchain-vars` | Standard environment scripts with Wii U TLS selection |
 | `wiiu-sdk-experimental` | Exact dependencies on the five matching versions |
+| `cafeglsl-host` | PC `glslcompiler`, headers, static library and CMake/pkg-config metadata |
 
 Binutils, newlib, the ordinary devkitPro build rules and unrelated libraries
 remain official packages. GCC is packaged using its own install target rather
@@ -118,6 +123,57 @@ sudo pacman -Syu dkp-linux/devkitppc-gcc dkp-linux/wut-tools \
 
 Do not mix old WUT/tooling with newly built TLS applications. Reconfigure and
 rebuild applications after returning to the official SDK.
+
+## Host shader compiler
+
+Install CafeGLSL separately after enabling the repository:
+
+```sh
+sudo pacman -S wiiu-local/cafeglsl-host
+```
+
+It installs into `/opt/devkitpro/tools`:
+
+```text
+bin/glslcompiler
+include/cafeglsl/{CafeGLSLCompiler.h,cafe_gx2.h,gfd.h}
+lib/libcafeglsl.a
+lib/cmake/cafeglsl/
+lib/pkgconfig/cafeglsl.pc
+share/doc/cafeglsl-host/README.md
+```
+
+This is a host library, not a PowerPC library. Standard devkitPro environment
+scripts already put `tools/bin` on `PATH`. For example, compile a shader pair:
+
+```sh
+glslcompiler -vs shader.vert -ps shader.frag -o shaders.gsh
+```
+
+Build the existing bgfx shaderc from the parent development directory:
+
+```sh
+cmake -S bgfx-wiiu/scripts/shaderc-wiiu -B .build/shaderc-packaged -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release
+cmake --build .build/shaderc-packaged --parallel 24
+```
+
+bgfx discovers the installed package automatically. An explicit `cafeglsl_DIR`
+or `CMAKE_PREFIX_PATH` can select a different installation.
+
+Other CMake consumers use `find_package(cafeglsl CONFIG REQUIRED)` and link
+`cafeglsl::cafeglsl`. With pkg-config, use:
+
+```sh
+PKG_CONFIG_PATH=/opt/devkitpro/tools/lib/pkgconfig \
+    pkg-config --static --cflags --libs cafeglsl
+```
+
+Both metadata formats include the configured static-link dependencies and
+section garbage collection. Headers and the archive ship together, and
+`sources.json` records the compiler revision used for the package.
+The existing CafeGLSL Meson build and staging script provide these files;
+packaging does not modify the compiler or bgfx sources.
 
 ## Public distribution later
 
