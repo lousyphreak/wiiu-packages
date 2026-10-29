@@ -14,6 +14,8 @@ BUILD_DKPRO_PACKAGE=2
 DKPPC_RULES_VER=1.2.1
 DKPPC_CRTLS_VER=1.0.0
 . "$release/select_toolchain.sh"
+# GCC's nested host configure inherits these flags from make's environment.
+export CPPFLAGS="$cppflags ${CPPFLAGS:-}"
 
 BUILDDIR="$root/.build/devkitPPC"
 BUILDSCRIPTDIR="$release"
