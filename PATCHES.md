@@ -102,14 +102,16 @@ access microbenchmark has been used to claim an overhead figure.
 
 Language TLS storage itself is allocated and freed by the native loader. The
 pthread-key array is a separate 128-entry structure (1 KiB per participating
-thread), allocated lazily. Each C++ destructor-list node is 12 bytes on PPC32,
+thread), allocated lazily. Each C++ destructor-list node is 16 bytes on PPC32,
 plus the allocator's overhead. Threads not using keys or C++ TLS destructors
 do not allocate those structures.
 
-The C++ registration function currently ignores its DSO argument. RPX thread
-lifetime is verified; arbitrary RPL unload lifetime is not implemented. Keeping
-module code resident while its destructors remain queued is required before
-unloadable C++ TLS can be supported.
+The dynamic-module extension retains the containing native module for each
+registered C++ TLS destructor using `OSDynLoad_AcquireContainingModule`. It
+releases that reference after the destructor returns. This uses native module
+reference counts rather than introducing a separate lifetime registry. The
+original TLS-only patch bundle predates this extension; current RPL work lives
+in the separate source commits described in the README.
 
 ## Converter patches
 
@@ -142,7 +144,11 @@ performs the ELF-to-native relocation translation.
 
 The SDK adapter sources the unmodified GCC stage scripts from released
 devkitPPC r50. It supplies their normal configuration inputs and local DESTDIR
-staging rather than carrying a second configure recipe. Host/compiler version
+staging rather than carrying a second configure recipe. The upstream host
+preprocessor flags are exported through nested configure/make as well; dropping
+`STDINT_LONG32=0` changed the local compiler's `int32_t`/`uint32_t` types from
+devkitPro's `int`/`unsigned int` to `long`/`unsigned long` and broke C++ signatures.
+The adapter now preserves that upstream input; no target-type patch was added. Host/compiler version
 choices are independent of the TLS ABI. Binutils and newlib come from the
 installed matching SDK. This is a staged local build, not a from-zero rebuild
 of every devkitPro package and not yet a binary pacman repository.
