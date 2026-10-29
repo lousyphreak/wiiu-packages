@@ -1,3 +1,15 @@
+From 295e2563f3e3e40b942fcb620e20180e8bf85853 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Martin=20B=C3=BCchler?= <lousy@lousy.at>
+Date: Thu, 29 Oct 2026 02:34:21 +0100
+Subject: [PATCH] Select the native TLS ABI in Wii U build environments
+
+---
+ cmake/wiiu/CafeOS.cmake        | 2 +-
+ cmake/wiiu/PKGBUILD            | 2 +-
+ dkp-toolchain-vars/PKGBUILD    | 2 +-
+ dkp-toolchain-vars/wiiuvars.sh | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
 diff --git a/cmake/wiiu/CafeOS.cmake b/cmake/wiiu/CafeOS.cmake
 index 1fb9e0c..29d42e6 100644
 --- a/cmake/wiiu/CafeOS.cmake
@@ -47,3 +59,6 @@ index f158a6e..0161e48 100644
  export CXXFLAGS="${CFLAGS}"
  export CPPFLAGS="-DESPRESSO -D__WIIU__ -D__WUT__ -I${PORTLIBS_WIIU}/include -I${PORTLIBS_PPC}/include -I${DEVKITPRO}/wut/include"
  export LDFLAGS="-L${PORTLIBS_WIIU}/lib -L${PORTLIBS_PPC}/lib -L${DEVKITPRO}/wut/lib -specs=${DEVKITPRO}/wut/share/wut.specs"
+-- 
+2.56.0
+

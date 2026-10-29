@@ -1,3 +1,12 @@
+From 08e9332c597a8f0afa3162a6c19160bc2f3d2a2b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Martin=20B=C3=BCchler?= <lousy@lousy.at>
+Date: Thu, 29 Oct 2026 02:19:24 +0100
+Subject: [PATCH] Emit native TLS descriptors and preserve TLS section layout
+
+---
+ src/elf2rpl/main.cpp | 117 ++++++++++++++++++++++++++++++-------------
+ 1 file changed, 83 insertions(+), 34 deletions(-)
+
 diff --git a/src/elf2rpl/main.cpp b/src/elf2rpl/main.cpp
 index 329ac1d..81b0154 100644
 --- a/src/elf2rpl/main.cpp
@@ -181,3 +190,6 @@ index 329ac1d..81b0154 100644
     return result && unsupportedTypes.size() == 0;
  }
  
+-- 
+2.56.0
+

@@ -55,7 +55,10 @@ not change generic GCC TLS behavior.
 
 ## GCC patch
 
-`patches/gcc-16.1.0-wiiu-tls.patch` applies after the normal devkitPPC GCC patch.
+[`../buildscripts/patches/gcc-16.2.0-wiiu-tls.patch`](../buildscripts/patches/gcc-16.2.0-wiiu-tls.patch)
+applies after the unchanged `gcc-16.2.0-1.patch`. The devkitPPC branch of
+`build-devkit.sh` applies this separate patch before configuring GCC. It remains
+separate from the existing multi-platform package patch.
 
 - `rs6000.opt`: defines `-mwiiu-tls`, default off, saved with target options.
 - `rs6000.cc`: the ELF section/symbol hook marks thread-local declarations as
@@ -106,12 +109,9 @@ thread), allocated lazily. Each C++ destructor-list node is 16 bytes on PPC32,
 plus the allocator's overhead. Threads not using keys or C++ TLS destructors
 do not allocate those structures.
 
-The dynamic-module extension retains the containing native module for each
-registered C++ TLS destructor using `OSDynLoad_AcquireContainingModule`. It
-releases that reference after the destructor returns. This uses native module
-reference counts rather than introducing a separate lifetime registry. The
-original TLS-only patch bundle predates this extension; current RPL work lives
-in the separate source commits described in the README.
+The later module-unloading extension is excluded from these TLS-only branches.
+Its containing-module references and host bindings remain on the preserved
+`wiiu` branches for separate review.
 
 ## Converter patches
 
@@ -142,16 +142,18 @@ performs the ELF-to-native relocation translation.
 
 ## Build/package integration and upstream submission boundaries
 
-The SDK adapter sources the unmodified GCC stage scripts from released
-devkitPPC r50. It supplies their normal configuration inputs and local DESTDIR
-staging rather than carrying a second configure recipe. The upstream host
-preprocessor flags are exported through nested configure/make as well; dropping
-`STDINT_LONG32=0` changed the local compiler's `int32_t`/`uint32_t` types from
-devkitPro's `int`/`unsigned int` to `long`/`unsigned long` and broke C++ signatures.
-The adapter now preserves that upstream input; no target-type patch was added. Host/compiler version
-choices are independent of the TLS ABI. Binutils and newlib come from the
-installed matching SDK. This is a staged local build, not a from-zero rebuild
-of every devkitPro package and not yet a binary pacman repository.
+The SDK adapter snapshots the current buildscripts commit based on devkitPPC
+r51 and uses its GCC 16.2.0, binutils 2.47 and newlib 4.6.0.20260123 selections.
+Release archives receive the existing package patches and then the separate
+Wii U TLS patch. Configure/build/install still use the upstream stage scripts,
+with local DESTDIR staging rather than a second configure recipe.
+
+The upstream host preprocessor flags are exported through nested configure/make;
+dropping `STDINT_LONG32=0` previously changed `int32_t`/`uint32_t` from devkitPro's
+`int`/`unsigned int` to `long`/`unsigned long` and broke C++ signatures. The
+adapter preserves that upstream input. The installed SDK bootstraps newlib
+headers and tools; binutils, GCC and newlib are rebuilt into the local stage.
+This is not yet a published binary pacman repository.
 
 `pacman-packages-tls.patch` changes only Wii U settings plus their source
 checksums: `cmake/wiiu/CafeOS.cmake` and `dkp-toolchain-vars/wiiuvars.sh` select
@@ -165,11 +167,7 @@ branches. A release needs coordinated compiler/WUT/tool/package dependencies,
 with final versions assigned during that release; fabricated package-version
 requirements would not establish compatibility today.
 
-The native results now establish RPX TLS and the loose RPL loading/unloading
-profile described in the README, including application-directory and WUHB hosts,
-worker TLS lifetime, failure cleanup, and the real CafeGLSL module. The original
-TLS patch files predate the module commits and must not be treated as a complete
-module-support release bundle. Upstream acceptance, a newer GCC rebase,
-multi-host binary packaging, embedded WUHB module loading, and broader module
-ABI guarantees remain separate work. No upstream PR or package publication has
-been performed by this change.
+The TLS branch excludes RPL host bindings, embedded-module packaging and the
+unrelated WUT/backend additions. Earlier native TLS and RPL evidence remains in
+the preserved development branches; current baseline verification is recorded
+in the README. No upstream PR or package publication has been performed.

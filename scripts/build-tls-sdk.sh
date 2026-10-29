@@ -6,10 +6,10 @@ source_sdk=${DEVKITPRO:-/opt/devkitpro}
 jobs=${JOBS:-24}
 stage="$root/.build/sdk"
 
-# Use the released devkitPPC build stages, without a second configure recipe.
-release="$root/.build/buildscripts-r50"
+# Use the current devkitPPC build stages and package patches.
+release="$root/.build/buildscripts-current"
 mkdir -p "$release"
-git -C "$root/buildscripts" archive devkitPPC_r50 | tar -x -C "$release"
+git -C "$root/buildscripts" archive HEAD | tar -x -C "$release"
 BUILD_DKPRO_PACKAGE=2
 DKPPC_RULES_VER=1.2.1
 DKPPC_CRTLS_VER=1.0.0
@@ -17,30 +17,50 @@ DKPPC_CRTLS_VER=1.0.0
 # GCC's nested host configure inherits these flags from make's environment.
 export CPPFLAGS="$cppflags ${CPPFLAGS:-}"
 
-BUILDDIR="$root/.build/devkitPPC"
+BUILDDIR="$root/.build/devkitPPC-$GCC_VER"
 BUILDSCRIPTDIR="$release"
 MAKE="make -j$jobs"
 prefix=/opt/devkitpro/devkitPPC
 host=$($release/config.guess)
 CROSS_PARAMS="--build=$host --host=$host"
-EXTRA_GCC_PARAMS="--with-system-zlib --with-build-sysroot=$source_sdk/devkitPPC/powerpc-eabi --with-pkgversion=WiiU-TLS-development --with-bugurl=https://github.com/lousyphreak/wut/issues"
+EXTRA_GCC_PARAMS="--with-system-zlib --with-build-sysroot=$stage$prefix/$target --with-build-time-tools=$stage$prefix/$target/bin --with-pkgversion=WiiU-TLS-development --with-bugurl=https://github.com/lousyphreak/wut/issues"
 export CC=${HOST_CC:-cc} CXX=${HOST_CXX:-c++}
 export DESTDIR="$stage"
-export PATH="$source_sdk/devkitPPC/bin:$PATH"
-mkdir -p "$BUILDDIR/$target/gcc"
-if [ ! -e "$BUILDDIR/gcc-$GCC_VER" ]; then
-    ln -s "$root/gcc" "$BUILDDIR/gcc-$GCC_VER"
-fi
+export PATH="$stage$prefix/bin:$source_sdk/devkitPPC/bin:$PATH"
+
+sources="$root/.build/sources"
+mkdir -p "$sources" "$BUILDDIR" "$stage$prefix/$target"
+cp -a --update=none "$source_sdk/devkitPPC/$target/." "$stage$prefix/$target/"
+cp "$source_sdk/devkitPPC/base_rules" "$source_sdk/devkitPPC/base_tools" "$stage$prefix/"
+for archive in "binutils-$BINUTILS_VER.tar.xz" "gcc-$GCC_VER.tar.xz" "newlib-$NEWLIB_VER.tar.gz"; do
+    if [ ! -f "$sources/$archive" ]; then
+        curl -fL -A dkp-buildscript "https://downloads.devkitpro.org/$archive" -o "$sources/$archive"
+    fi
+done
+cd "$BUILDDIR"
+for component in "binutils-$BINUTILS_VER" "gcc-$GCC_VER" "newlib-$NEWLIB_VER"; do
+    if [ ! -d "$component" ]; then
+        tar -xf "$sources/$component.tar."* -C "$BUILDDIR"
+        case "$component" in
+            binutils-*) patch="$BINUTILS_PKGREL" ;;
+            gcc-*) patch="$GCC_PKGREL" ;;
+            newlib-*) patch="$NEWLIB_PKGREL" ;;
+        esac
+        patch -p1 -d "$component" < "$release/patches/$component-$patch.patch"
+        if [ "$component" = "gcc-$GCC_VER" ]; then
+            patch -p1 -d "$component" < "$release/patches/$component-wiiu-tls.patch"
+        fi
+    fi
+done
+. "$release/build-binutils.sh" > binutils.log 2>&1
 
 # Let make handle incremental source changes instead of retaining build stamps.
+mkdir -p "$BUILDDIR/$target/gcc"
 cd "$BUILDDIR/$target/gcc"
 rm -f built-gcc installed-gcc built-gcc-stage2 installed-gcc-stage2
 . "$release/build-gcc-stage1.sh" > stage1.log 2>&1
-. "$release/build-gcc-stage2.sh" > stage2.log 2>&1
-cp -a --update=none "$source_sdk/devkitPPC/powerpc-eabi/." \
-    "$stage/opt/devkitpro/devkitPPC/powerpc-eabi/"
-cp "$source_sdk/devkitPPC/base_rules" "$source_sdk/devkitPPC/base_tools" \
-    "$stage/opt/devkitpro/devkitPPC/"
+. "$release/build-newlib.sh" > "$BUILDDIR/newlib.log" 2>&1
+. "$release/build-gcc-stage2.sh" > "$BUILDDIR/$target/gcc/stage2.log" 2>&1
 
 cd "$root"
 # Use the new compiler, with the usual logical prefix plus DESTDIR installation.

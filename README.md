@@ -7,38 +7,42 @@ the working TLS implementation.
 
 ## Sources
 
-Sibling checkouts, relative to this directory:
+TLS-only SDK changes live on `wiiu-tls` in the sibling repositories. The
+compiler inspection checkout uses `wiiu-tls-16.2`; this directory uses
+`tls-16.2`. The earlier validated TLS/RPL setup remains on the `wiiu` branches
+and its SDK snapshot is `../.build/sdk-gcc16.1/`.
 
-| Directory | Baseline | TLS commit |
+| Directory | Current upstream baseline | TLS changes |
 | --- | --- | --- |
-| `../gcc` | GCC `releases/gcc-16.1.0`, then devkitPPC package patches at `43a9556d0` | `67816438e`, `f4bc1a3b4` |
-| `../wut` | `a5d1c8dce4289392723edd83ecba4b0e416392dd` | `22eace9`, `de81d0a` |
-| `../wut-tools` | `8b5b72366fd82791aea5323f8cc9b903e54a92c8` | `09ae765` |
-| `../pacman-packages` | `b9e8b0de6a6423557fd2a57dc100bf327c79dd4a` | `daa1673` |
+| `../buildscripts` | devkitPPC r51 / `5740da9` | Separate GCC 16.2.0 TLS patch and application step |
+| `../gcc` | GCC 16.2.0 plus the original devkitPro package patch | Compiler inspection/rebase; not a build input |
+| `../wut` | `937f0d6` | Runtime, template layout, cleanup, SDK selection |
+| `../wut-tools` | `b22de1a` | Original contributor's TLS work, then conversion corrections |
+| `../pacman-packages` | `b9e8b0d` | Wii U CMake and portlibs environment selection |
 
-The `patches/` files contain the TLS changes, including the new WUT runtime file.
-The GCC patch applies after the devkitPPC package patch, not directly to the
-unmodified GCC release. The converter series first applies
-`wut-tools-tls-base.patch`, preserving the existing TLS contributor's commit,
-then `wut-tools-native-tls.patch`. Neither includes unrelated WUHB audio changes.
+The integration target is
+[`buildscripts/patches/gcc-16.2.0-wiiu-tls.patch`](../buildscripts/patches/gcc-16.2.0-wiiu-tls.patch).
+`build-devkit.sh` applies it after the unchanged `gcc-16.2.0-1.patch`, only for
+devkitPPC. The compiler mode remains opt-in; the Wii U SDK selects it. Other
+platforms retain their existing defaults.
 
-The build adapter uses the unmodified GCC stage scripts from devkitPro's
-`devkitPPC_r50` release (`7a8c81eeccb4890c7abfe4677a21100909beff64`).
-It deliberately retains the verified GCC 16.1.0/binutils/newlib baseline rather
-than silently adopting the newer versions on the buildscripts master branch.
-The updated Wii U settings in `../pacman-packages` cover `wiiu-cmake` and
-`dkp-toolchain-vars`; other platform settings are unchanged.
+The `patches/` files contain the rebased WUT, converter, and package changes.
+The converter series first applies `wut-tools-tls-base.patch`, preserving the
+original contributor's authorship, then `wut-tools-native-tls.patch`. It contains
+no unrelated WUHB audio or RPL host-binding work.
 
 ## Build and use
 
 From the parent directory, run `bash wiiu-packages/scripts/build-tls-sdk.sh`.
-The script uses the installed devkitPPC binutils/newlib and the existing source
-checkouts, with the r50 tag available in `../buildscripts`. It defaults to 24
-build jobs and the host's normal C/C++ compilers. Set
+The script snapshots the current local buildscripts commit, downloads the
+selected release archives into `../.build/sources/`, applies the normal package
+patches followed by the separate TLS patch, and invokes the upstream binutils,
+GCC and newlib build stages. It does not compile the patched `../gcc` checkout.
+It defaults to 24 build jobs and the host's normal C/C++ compilers. Set
 `JOBS`, `HOST_CC`, `HOST_CXX`, or `DEVKITPRO` to override those inputs.
 GCC 15 was used for the validated host build.
 
-Build output and logs go in `../.build/devkitPPC/powerpc-eabi/gcc/`,
+Build output and logs go in `../.build/devkitPPC-16.2.0/powerpc-eabi/gcc/`,
 `../.build/wut-tools/`, and `../.build/wut-install.log`. The staged SDK is
 `../.build/sdk/opt/devkitpro`; the installed SDK remains unchanged. Point
 `DEVKITPRO` and `DEVKITPPC` at that staged SDK. Normal WUT Make builds, devkitPro
@@ -60,12 +64,12 @@ by default. Explicitly disabling `-fuse-cxa-atexit` prevents namespace-scope C++
 TLS destructors from being registered. WUT disables linker TLS relaxation and
 destroys main-thread TLS before ordinary exit callbacks and static objects.
 
-The adapter delegates GCC configure/build/install to the released upstream
-stage scripts and preserves their language, threading, optimization and runtime
-settings, including its `STDINT_LONG32=0` host-build setting in nested GCC
-configurations. Its additions are local DESTDIR staging, an installed newlib/binutils
-bootstrap, host system zlib, and development branding/issue routing. It does not
-modify devkitPro's scripts or maintain its own GCC configure-options list.
+The adapter delegates configure/build/install to upstream stage scripts and
+preserves their language, threading, optimization and runtime settings,
+including `STDINT_LONG32=0` in nested GCC configurations. Its additions are local
+DESTDIR staging, the installed SDK bootstrap, host system zlib, and development
+branding/issue routing. It does not maintain a separate configure recipe. The
+only buildscripts change is the devkitPPC-specific TLS patch application step.
 WUT uses its own Makefile; wut-tools uses its normal Autotools build. Autogen
 refreshes generated libtool files in that source checkout; those generated
 changes are not part of the patch series.
@@ -74,161 +78,46 @@ See [PATCHES.md](PATCHES.md) for the per-file rationale, flag choice, and
 remaining upstreaming work. Pacman binary packaging is still a separate step;
 this adapter produces a staged SDK, not a replacement package manager.
 
-## Dynamic modules
-
-The implementation uses the existing native loader and loose RPL files on the
-SD card. Each application owns its GCC/newlib/WUT runtime in its RPX. There is
-no companion runtime RPL, shared runtime installation, SD cache, extraction, or
-Aroma/Mocha modification.
-
-Build application exports with `wut_add_exports(app host.def HOST)`. Build a
-module with `wut_link_rpl(module app)` and `wut_create_rpl(module)`. The host
-manifest lists application/runtime functions under `:TEXT`, ordinary objects
-under `:DATA`, and thread-local objects under `:TLS`. Keep native OS imports as
-normal WUT imports. Module code and every implementation archive included in it
-must use `-fPIC -msdata=none -msecure-plt`. The CMake helper applies these flags to
-the module target; prebuilt archives must be rebuilt separately. Host-bound
-modules link without default static runtime libraries, so omitted runtime imports
-fail at link time instead of quietly embedding a second runtime.
-
-Generated module call veneers use writable pointer slots. Taking a function's
-address resolves to the real host address. Ordinary data and TLS descriptors
-are bound before module constructors through `__wut_bind_imports_v1` exported
-by the RPX. Missing imports fail the native acquisition before constructors run.
-The loader retains code while registered C++ TLS destructors still need it.
-Module-local `atexit` forwards to `__cxa_atexit` with the module DSO, so C callbacks
-and C++ static destructors both finish before unload using the same runtime list.
-Applications still must finish module calls and destroy ordinary module objects
-before releasing their last explicit handle.
-
-Open a module with `OSDynLoad_Acquire`, find its exports with
-`OSDynLoad_FindExport`, and release it with `OSDynLoad_Release`. Existing Aroma
-supports explicit SD paths encoded as `~|wiiu|apps|myapp|engine.rpl` or, for a
-shared compiler, `~|wiiu|lib|cafeglsl1.rpl`. Each `|` represents `/`, starting at
-the SD root. The encoded stem before `.rpl` must fit the native 59-byte filename
-limit. This is an existing loader route, not a new system patch.
-
-An RPX or WUHB application may load these loose files. RPL files embedded inside
-a WUHB are outside this implementation: the application content mount is not a
-native module source.
-
-Private engines should use the same toolchain/runtime build as their host.
-Independently updated global modules should expose a stable C interface with
-opaque objects and matching create/destroy functions. They must retain a
-compatible host-runtime import baseline; missing newer symbols cause a normal
-load failure, and a genuinely incompatible runtime requires a new module ABI.
-This does not promise compatibility across arbitrary GCC/newlib ABI changes.
-
-The patched Cemu is an independent Git checkout at `../Cemu`. Its fresh build
-is `../Cemu/.build/cemu-rpl`, preserving the previous graphics work. Standalone
-homebrew encoded paths read files directly from its configured `sdcard/`
-directory. Native filename identity, initialization errors, reference counts,
-TLS templates/alignment and destructor ordering are checked against retail
-loader evidence. Guest NX enforcement and physical aliases are still incomplete
-in Cemu; its API emulation is not proof of a custom executable-memory loader.
-
 ## Verification
 
-Native console probes passed with the staged toolchain:
+The GCC 16.2.0 / binutils 2.47 / newlib 4.6.0.20260123 SDK and WUT release/debug
+archives built with 24 jobs. The separate TLS patch applied after the existing
+package patch to the official GCC release archive. The four modified GCC files
+match the rebased inspection checkout. The package patch itself is unchanged.
 
-- Initialized and zero-only TLS, external and hidden symbols, and 256-byte alignment.
+The existing TLS probes passed offscreen Cemu preflight and then the console:
+
+- Initialized/zeroed TLS, external and hidden symbols, and 256-byte alignment.
 - Independent values on the main thread, `std::thread` workers, and raw OS threads.
-- Cross-translation-unit dynamic initialization and values retained across core migration.
+- Cross-translation-unit dynamic initialization and retained values across cores.
 - Function-local and namespace-scope C++ TLS destruction, including a destructor
   constructing another TLS object, and main-thread TLS destruction before globals.
-- 96 pthread keys, deletion/reuse, and an LTO build.
-- Zero-only TLS storage without overlap with ordinary BSS; clean return to Menu.
+- 96 pthread keys, deletion/reuse, and the original LTO application build.
+- A separate C11 zero-only template with intact ordinary BSS and independent
+  worker/main values; both native probes returned cleanly to Menu.
 
-Scratch probe sources and logs are in `../.build/tls-native/` and
-`../.build/tls-zero/`. Cemu also passed worker initialization and lifetime checks.
-The original Cemu run used fixed 32-byte TLS alignment; the loader updates now
-use the module alignment. Cemu still does not implement the probe's Menu-launch
-call; native lifecycle results were verified separately on hardware. Offscreen Cemu must use `GDK_BACKEND=x11` with an
-isolated Xvfb display and `WAYLAND_DISPLAY` unset.
+CMake, the existing Make probe, and `wiiuvars.sh` compilation passed with automatic
+SDK selection. No application TLS attributes or manual TLS option were added.
+The existing generic/Wii/GameCube assembly probe matches the installed unmodified
+GCC 16.1.0 compiler, and the new compiler's default output matches explicit
+`-mno-wiiu-tls`. This is a small code-generation control, not a full cross-platform
+regression suite. Wii U output calls `__tls_get_addr` without thread-pointer
+relocations. The staged compiler retains devkitPro's `int`/`unsigned int` 32-bit
+type definitions.
 
-The upstream-stage rebuild and automatic SDK selection also passed a normal
-devkitPro CMake build, a `wiiuvars.sh` compilation, and the complete lifetime
-probe in offscreen Cemu (without its unsupported Menu-launch call). A stock vs
-patched compiler comparison produced identical generic, Wii and GameCube TLS
-assembly, excluding the compiler identity string. Logs are in
-`../.build/tls-default/` and `../.build/tls-default-cemu/`.
-
-The default CMake RPX itself was subsequently checked offscreen in Cemu, then
-the identical artifact passed on the console, including all worker and
-main-thread destructors and clean return to Menu. Its SHA-256 and native log
-are saved in `../.build/tls-default/`. Cemu stops at that probe's Menu-launch
-call; the variant mentioned above skips only this unsupported lifecycle call.
-
-Export `DEVKITPRO` and `DEVKITPPC` for both CMake configuration and subsequent
-builds, not just configuration: WUT's linker specs use `DEVKITPRO` at link time.
-
-## Dynamic-module validation
-
-Built the modified tools, WUT, native module/host artifacts and relocated Cemu
-with parallelism 24. The local SDK now preserves devkitPro's integer-type build
-setting throughout the compiler and runtime build.
-
-Offscreen Cemu checks completed:
-
-- Direct loose SD-file loading, duplicate handles, final unload and reload.
-- Constructor-time host function/data access and canonical function pointers.
-- C++ exceptions thrown in the module and caught by the host.
-- A worker started before module loading, initialized/zeroed and 256-byte-aligned
-  module TLS, independent imported host TLS, and delayed unload until its TLS
-  destructor completes.
-- Missing imports rejected before constructors; failed module entry finalized
-  once without publishing a handle.
-- Ordinary static-only application startup and existing thread-local lifetime.
-- The real CafeGLSL PIC archive loaded as a 2.7 MiB loose RPL, compiled a shader
-  pair, freed the results, unloaded, reloaded and repeated. Its 208-byte vertex
-  and 8-byte pixel programs matched the host compiler's instruction hashes.
-  Host process exit also completed after both module unloads.
-
-CafeGLSL needed no source changes. Its runtime import contract currently has
-179 live functions and 12 data objects (plus module-local `atexit`); the
-module contains one implementation archive and uses the application's runtime. The original ScummVM engine port is
-not part of this SDK slice; the worker/module lifetime exercised here covers the
-loader mechanics it needs, rather than claiming an engine integration run.
-
-Reproduction artifacts and complete logs are local under
-`../.build/rpl-native/`, `../.build/rpl-cafeglsl/` and
-`../.build/rpl-validation/`. Native-loader evidence and emulator limitations are
-recorded in `../.build/native-loader-research/`. Emulator timings are not
-hardware performance figures.
-
-Native-console validation subsequently passed with the same SDK and modules:
-
-- An application-directory RPX and a WUHB host both loaded the loose companion
-  RPL from the application's SD directory. Each completed both load/unload
-  cycles, cross-module exceptions, function identity, imported host TLS,
-  256-byte-aligned module TLS, and deferred unload through worker destruction.
-- Module destructors and ordinary C `atexit` callbacks each ran exactly once per
-  load. Reload started with fresh module TLS and repeated successfully.
-- Missing imports returned `bad10029` and a null handle before constructors.
-  A failing module entry finalized once and returned the same error and null
-  handle. Both results matched the corresponding Cemu runs.
-- The real CafeGLSL module loaded directly from `SD:/wiiu/lib/cafeglsl1.rpl`,
-  rejected malformed source, compiled the pair, freed results, unloaded and
-  reloaded. Both cycles matched the host-reference instruction hashes.
-- The WUHB host processed lifecycle messages and returned to Menu normally.
-
-The scratch host originally idled without processing lifecycle messages; this
-blocked the following launch after its module work had passed. Its idle loop
-now uses `WHBProcIsRunning()`. The compiler probe's direct process return also
-left the native system waiting in the root process. These were probe lifecycle
-limitations, not module-loading failures. No new SDK or Cemu source correction
-was needed by this console validation. Native logs and current Cemu control
-runs are under `../.build/rpl-validation/native/`.
-
-A WUHB host plus a loose companion RPL is verified; this does not establish
-loading an RPL embedded inside WUHB content.
+Logs, artifacts and exact commands are in `../.build/tls-16.2/`. The probe sources
+remain in `../.build/tls-default/`, `../.build/tls-default-cemu/` and
+`../.build/tls-zero/`; no new test framework was added. Cemu's Menu-launch call
+remains unsupported, so its C++ exit/destructor control uses the existing variant
+that omits that call. The actual native artifacts also reached their completion
+markers in Cemu before deployment. Cemu runs used an isolated Xvfb display with
+`GDK_BACKEND=x11` and `WAYLAND_DISPLAY` unset.
 
 ## Remaining scope
 
-Native-console results establish RPX TLS and the loose dynamic-module profile
-above. No binutils patch is needed for that path. Embedded WUHB modules,
-arbitrary inter-module dependency discovery, a full ScummVM engine integration,
-and arbitrary cross-version C++ object ABI compatibility remain outside this
-implementation. Global C interfaces must keep their API and required host-runtime
-imports compatible; the CafeGLSL run does not establish compatibility across
-unrelated toolchain releases.
+The TLS branches intentionally omit the later RPL host-binding implementation.
+It remains available on the preserved `wiiu` branches and is a separate upstream
+proposal. Native TLS uses the existing loader resolver; no binutils TLS change
+or system modification is required. Upstream review, coordinated package
+versions and multi-host binary packaging remain pending. No PR or package has
+been published.

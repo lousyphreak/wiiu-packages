@@ -1,4 +1,4 @@
-From adef21b93dc0b8f675d5df0565778bb99e7bfeef Mon Sep 17 00:00:00 2001
+From 4c09c19571ad829bf537f655eec2062a54b51bf3 Mon Sep 17 00:00:00 2001
 From: aliaspider <aliaspider@gmail.com>
 Date: Tue, 29 Sep 2020 16:54:04 +0100
 Subject: [PATCH] elf2rpl: add TLS Support.
@@ -30,7 +30,7 @@ index c7f4eab..1cf2dc9 100644
  
  static const unsigned HeaderMagic = 0x7f454c46;
 diff --git a/src/elf2rpl/main.cpp b/src/elf2rpl/main.cpp
-index 034f142..d200726 100644
+index 884e3cb..329ac1d 100644
 --- a/src/elf2rpl/main.cpp
 +++ b/src/elf2rpl/main.cpp
 @@ -10,6 +10,7 @@
@@ -41,7 +41,7 @@ index 034f142..d200726 100644
  #include <zlib.h>
  
  constexpr auto DeflateMinSectionSize = 0x18u;
-@@ -116,6 +117,11 @@ readElf(ElfFile &file, const std::string &filename)
+@@ -125,6 +126,11 @@ readElf(ElfFile &file, const std::string &filename)
           section.header.flags |= elf::SHF_WRITE;
        }
  
@@ -53,7 +53,7 @@ index 034f142..d200726 100644
        auto pos = in.tellg();
        in.seekg(static_cast<size_t>(section.header.offset));
        section.data.resize(section.header.size);
-@@ -176,6 +182,12 @@ generateFileInfoSection(ElfFile &file,
+@@ -223,6 +229,12 @@ generateFileInfoSection(ElfFile &file,
           size = section->header.size;
        }
  
@@ -66,7 +66,7 @@ index 034f142..d200726 100644
        if (section->header.addr >= CodeBaseAddress &&
            section->header.addr < DataBaseAddress) {
           auto val = section->header.addr + section->header.size - CodeBaseAddress;
-@@ -362,6 +374,53 @@ fixRelocations(ElfFile &file)
+@@ -413,6 +425,53 @@ fixRelocations(ElfFile &file)
              break;
           }
  
