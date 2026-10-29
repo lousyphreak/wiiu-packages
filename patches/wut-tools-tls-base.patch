@@ -1,0 +1,125 @@
+From adef21b93dc0b8f675d5df0565778bb99e7bfeef Mon Sep 17 00:00:00 2001
+From: aliaspider <aliaspider@gmail.com>
+Date: Tue, 29 Sep 2020 16:54:04 +0100
+Subject: [PATCH] elf2rpl: add TLS Support.
+
+---
+ src/common/elf.h     |  3 +++
+ src/elf2rpl/main.cpp | 59 ++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 62 insertions(+)
+
+diff --git a/src/common/elf.h b/src/common/elf.h
+index c7f4eab..1cf2dc9 100644
+--- a/src/common/elf.h
++++ b/src/common/elf.h
+@@ -55,6 +55,8 @@ enum SectionFlags : uint32_t // sh_flags
+    SHF_WRITE = 0x1,
+    SHF_ALLOC = 0x2,
+    SHF_EXECINSTR = 0x4,
++   SHF_TLS = 0x0400,
++   SHF_RPL_TLS = 0x04000000,
+    SHF_DEFLATED = 0x08000000,
+    SHF_MASKPROC = 0xF0000000,
+ };
+@@ -197,6 +199,7 @@ enum RelocationType : uint32_t // r_info & 0xff
+ enum RplFileInfoFlag : uint32_t
+ {
+    RPL_IS_RPX = 0x2,
++   RPL_TLS = 0x8,
+ };
+ 
+ static const unsigned HeaderMagic = 0x7f454c46;
+diff --git a/src/elf2rpl/main.cpp b/src/elf2rpl/main.cpp
+index 034f142..d200726 100644
+--- a/src/elf2rpl/main.cpp
++++ b/src/elf2rpl/main.cpp
+@@ -10,6 +10,7 @@
+ #include <set>
+ #include <string>
+ #include <vector>
++#include <math.h>
+ #include <zlib.h>
+ 
+ constexpr auto DeflateMinSectionSize = 0x18u;
+@@ -116,6 +117,11 @@ readElf(ElfFile &file, const std::string &filename)
+          section.header.flags |= elf::SHF_WRITE;
+       }
+ 
++      if (section.header.flags & elf::SHF_TLS) {
++         section.header.flags &= ~elf::SHF_TLS;
++         section.header.flags |= elf::SHF_RPL_TLS;
++      }
++
+       auto pos = in.tellg();
+       in.seekg(static_cast<size_t>(section.header.offset));
+       section.data.resize(section.header.size);
+@@ -176,6 +182,12 @@ generateFileInfoSection(ElfFile &file,
+          size = section->header.size;
+       }
+ 
++      if (section->header.flags & elf::SHF_RPL_TLS) {
++         info.flags |= elf::RPL_TLS;
++         if ((1 << info.tlsAlignShift) < section->header.addralign)
++            info.tlsAlignShift = (uint16_t)log2((float)section->header.addralign);
++      }
++
+       if (section->header.addr >= CodeBaseAddress &&
+           section->header.addr < DataBaseAddress) {
+          auto val = section->header.addr + section->header.size - CodeBaseAddress;
+@@ -362,6 +374,53 @@ fixRelocations(ElfFile &file)
+             break;
+          }
+ 
++         /*
++          * Convert R_PPC_GOT_TLSGD16/R_PPC_TLSGD into R_PPC_DTPMOD32/R_PPC_DTPREL32
++          */
++         case elf::R_PPC_TLSGD:
++         case elf::R_PPC_GOT_TLSGD16: {
++            uint32_t gotAddr = 0;
++            bool gotFound = false;
++            auto strTab = file.sections[symbolSection->header.link]->data.data();
++            for (int j = 0; j < symbolSection->data.size() / sizeof(elf::Symbol); j++) {
++               elf::Symbol symbol;
++               getSymbol(*symbolSection, j, symbol);
++               if (!strcmp(strTab + symbol.name, "_GLOBAL_OFFSET_TABLE_")) {
++                  gotFound = true;
++                  gotAddr = symbol.value;
++                  if (targetSection->name != file.sections[symbol.shndx]->name) {
++                     fmt::print("ERROR: \"_GLOBAL_OFFSET_TABLE_\" found in section \"{}\" instead of \"{}\", "
++                                "cannot fix a R_PPC_GOT_TLSGD16 relocation\n",
++                                file.sections[symbol.shndx]->name, targetSection->name);
++                     result = false;
++                  }
++                  break;
++               }
++            }
++
++            if (!gotFound) {
++               fmt::print("ERROR: Could not find symbol \"_GLOBAL_OFFSET_TABLE_\" for fixing a R_PPC_GOT_TLSGD16 relocation\n");
++               result = false;
++               break;
++            }
++
++            /* tls_index is stored in GOT as 8 bytes (DTPMOD32 + DTPREL32)
++             * GOT_TLSGD16 points to the offset of tls_index in GOT
++             * for R_PPC_TLSGD, the offset is in the previous instruction
++             */
++            be_val<int16_t> *tlsIndexOffset = (be_val<int16_t> *)(targetSection->data.data() + offset - targetSection->header.addr);
++
++            if (type == elf::R_PPC_GOT_TLSGD16) {
++               rels[i].info = (index << 8) | elf::R_PPC_DTPMOD32;
++               rels[i].offset = gotAddr + *tlsIndexOffset;
++            } else {
++               tlsIndexOffset--;
++               rels[i].info = (index << 8) | elf::R_PPC_DTPREL32;
++               rels[i].offset = gotAddr + *tlsIndexOffset + 4;
++            }
++            break;
++         }
++
+          default:
+             // Only print error once per type
+             if (!unsupportedTypes.count(type)) {
+-- 
+2.56.0
+

@@ -223,12 +223,29 @@ index e11f75a..1e70390 100644
        *(.sbss .sbss.* .gnu.linkonce.sb.*)
        *(.scommon)
 diff --git a/share/wut.specs b/share/wut.specs
-index 6605944..ad65cca 100644
+index 6605944..e621e7c 100644
 --- a/share/wut.specs
 +++ b/share/wut.specs
-@@ -1,4 +1,4 @@
+@@ -1,4 +1,8 @@
  %rename link old_link
++%rename self_spec old_self_spec
++
++*self_spec:
++%(old_self_spec) -mwiiu-tls
  
  *link:
 -%(old_link) -T %:getenv(DEVKITPRO /wut/share/wut.ld) --gc-sections --emit-relocs --no-eh-frame-hdr -z nocopyreloc %(wut_entry)
 +%(old_link) -T %:getenv(DEVKITPRO /wut/share/wut.ld) --gc-sections --emit-relocs %{mwiiu-tls:--no-tls-optimize --wrap=__call_exitprocs --undefined=__wrap___call_exitprocs} --no-eh-frame-hdr -z nocopyreloc %(wut_entry)
+diff --git a/share/wut_rules b/share/wut_rules
+index 9479e75..991124b 100644
+--- a/share/wut_rules
++++ b/share/wut_rules
+@@ -21,7 +21,7 @@ WUT_ROOT	?=	$(DEVKITPRO)/wut
+ RPXSPECS	:=	-specs=$(WUT_ROOT)/share/wut.specs
+ RPLSPECS	:=	-specs=$(WUT_ROOT)/share/wut.specs -specs=$(WUT_ROOT)/share/rpl.specs
+ 
+-MACHDEP	= -DESPRESSO -mcpu=750 -meabi -mhard-float
++MACHDEP	= -DESPRESSO -mcpu=750 -meabi -mhard-float -mwiiu-tls
+ 
+ WUHB_DEPS	:=
+ WUHB_OPTIONS	:=

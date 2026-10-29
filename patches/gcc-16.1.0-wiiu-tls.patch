@@ -44,3 +44,33 @@ index 2eeb45a4b..f5246fa7a 100644
  ;; ABI enumeration available for subtarget to use.
  TargetVariable
  enum rs6000_abi rs6000_current_abi = ABI_NONE
+diff --git a/gcc/doc/invoke.texi b/gcc/doc/invoke.texi
+index 9207a021e..8ef884c03 100644
+--- a/gcc/doc/invoke.texi
++++ b/gcc/doc/invoke.texi
+@@ -1385,7 +1385,7 @@ See RS/6000 and PowerPC Options.
+ -maix-struct-return  -msvr4-struct-return
+ -mabi=@var{abi-type}  -msecure-plt  -mbss-plt
+ -msplit-patch-nops
+--mregnames  -mlongcall  -mpltseq  -mtls-markers
++-mregnames  -mlongcall  -mpltseq  -mtls-markers  -mwiiu-tls
+ -mblock-move-inline-limit=@var{num}
+ -mblock-compare-inline-limit=@var{num}
+ -mblock-compare-inline-loop-limit=@var{num}
+@@ -32363,6 +32363,16 @@ no EABI initialization function is called from @code{main}, and the
+ small data area.  The @option{-meabi} option is on by default if you
+ configured GCC using one of the @samp{powerpc*-*-eabi*} options.
+ 
++@opindex mwiiu-tls
++@item -mwiiu-tls
++Use the Wii U module-resolver ABI for thread-local storage.  All TLS
++variables, including internal variables and initialization guards, use
++the global-dynamic model instead of a thread pointer in @code{r2}.
++This option does not change the selected CPU or ordinary data accesses.
++On embedded PowerPC targets, it also enables @option{-fuse-cxa-atexit}
++by default for C++ TLS destructor registration.  Use it with the WUT
++runtime and link specifications, which disable TLS linker relaxation.
++
+ @opindex msdata=eabi
+ @item -msdata=eabi
+ On System V.4 and embedded PowerPC systems, put small initialized

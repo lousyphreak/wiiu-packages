@@ -1,0 +1,49 @@
+diff --git a/cmake/wiiu/CafeOS.cmake b/cmake/wiiu/CafeOS.cmake
+index 1fb9e0c..29d42e6 100644
+--- a/cmake/wiiu/CafeOS.cmake
++++ b/cmake/wiiu/CafeOS.cmake
+@@ -14,7 +14,7 @@ set(WIIU TRUE)
+ set(WUT TRUE)
+ 
+ # Platform settings
+-set(WUT_ARCH_SETTINGS "-mcpu=750 -meabi -mhard-float")
++set(WUT_ARCH_SETTINGS "-mcpu=750 -meabi -mhard-float -mwiiu-tls")
+ set(WUT_COMMON_FLAGS  "-ffunction-sections -fdata-sections -DESPRESSO -D__WIIU__ -D__WUT__")
+ set(WUT_LINKER_FLAGS  "-L${WUT_ROOT}/lib -L${DEVKITPRO}/portlibs/wiiu/lib -L${DEVKITPRO}/portlibs/ppc/lib -specs=${WUT_ROOT}/share/wut.specs")
+ set(WUT_STANDARD_LIBRARIES "-lwut -lm")
+diff --git a/cmake/wiiu/PKGBUILD b/cmake/wiiu/PKGBUILD
+index 10d13d2..ea4bfa8 100644
+--- a/cmake/wiiu/PKGBUILD
++++ b/cmake/wiiu/PKGBUILD
+@@ -27,4 +27,4 @@ package() {
+ }
+ sha256sums=('ee87536e1f4826f2f13008c3b935d5dfaaa901f9e1d64979642570070fd96786'
+             '1e868f8e0b68253dc1c98d62b9934cc7fba359d2bc2cf0e484b417516e5a88cf'
+-            '24b954c35217653a205b550e12aceacf76d1c47a8abf62db0a6794bfc540fbb0')
++            'de3ea663f8b4834669b47710671a479cabfa6ff7588d726859e8cd37d98eef19')
+diff --git a/dkp-toolchain-vars/PKGBUILD b/dkp-toolchain-vars/PKGBUILD
+index 07c12df..0c2c57c 100644
+--- a/dkp-toolchain-vars/PKGBUILD
++++ b/dkp-toolchain-vars/PKGBUILD
+@@ -37,7 +37,7 @@ sha256sums=('000b49cce7a925cb096fbac43501ef1c89511861a3ea2091569ae71aa108369b'
+             'e3156d1e6671bfc9ad6a343d26da8cbddcfc4d8e5321ddc07cb2b4934e20ed66'
+             '004fd94dfc9e7a19281fec19c0341686f4dbf00d1f3c9c5590a150e1faac2360'
+             'e35283a019b5e032c8085e3085b46ab80cea58851c087ba4269a502195ade359'
+-            '0f096b32a3216916553360948d2f91f92f4657844a1618cb84bf96a797c44979'
++            '1419948437a067764cc39068a4f40257de216446137dd660b55db1a799037c30'
+             'f3caba3a8864a31a50ff50131f39d160013b6d0b8a2e7e6ac90ca44b591fcb57'
+             '5ade1211e616a7eb540c3660839d17af050c41c7c9ee89242ce4fe7afac4df52'
+             '7913cb3d38e78ede19673912f25970d678912404399e5c10c744726bbafd5f84')
+diff --git a/dkp-toolchain-vars/wiiuvars.sh b/dkp-toolchain-vars/wiiuvars.sh
+index f158a6e..0161e48 100644
+--- a/dkp-toolchain-vars/wiiuvars.sh
++++ b/dkp-toolchain-vars/wiiuvars.sh
+@@ -4,7 +4,7 @@ export PORTLIBS_PREFIX=${PORTLIBS_ROOT}/wiiu
+ export PORTLIBS_PPC=${PORTLIBS_ROOT}/ppc
+ export PORTLIBS_WIIU=${PORTLIBS_PREFIX}
+ 
+-export CFLAGS="-mcpu=750 -meabi -mhard-float -O2 -ffunction-sections -fdata-sections"
++export CFLAGS="-mcpu=750 -meabi -mhard-float -mwiiu-tls -O2 -ffunction-sections -fdata-sections"
+ export CXXFLAGS="${CFLAGS}"
+ export CPPFLAGS="-DESPRESSO -D__WIIU__ -D__WUT__ -I${PORTLIBS_WIIU}/include -I${PORTLIBS_PPC}/include -I${DEVKITPRO}/wut/include"
+ export LDFLAGS="-L${PORTLIBS_WIIU}/lib -L${PORTLIBS_PPC}/lib -L${DEVKITPRO}/wut/lib -specs=${DEVKITPRO}/wut/share/wut.specs"
